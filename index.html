@@ -198,7 +198,7 @@
       .cal-day.selected .num-pill { width: 38px; height: 38px; }
     }
   </style>
-</head>    
+</head>
 <body>
 
 <div id="lockScreen">
@@ -350,7 +350,8 @@
 </div>
 
 <script>
-  const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyTfXpWhIGkdlcw5YcCK5Xq4VaspZgiw2PKJ4cR732Z5kGp1w0Ffk-xT13KMqm9EG8xZg/exec';
+  // ▼▼▼ 請將下方雙引號內的網址換成你自己的 Google Apps Script /exec 正式網址 ▼▼▼
+  const GAS_API_URL = 'https://script.google.com/macros/s/請替換為你的部署ID/exec';
 
   let savedPasscode = localStorage.getItem('wallet_passcode') || '';
   let appData = null;
