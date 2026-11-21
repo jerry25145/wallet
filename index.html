@@ -19,12 +19,12 @@
       --sub: #7f8c8d;
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif; }
-    body { margin: 0; background: var(--bg); color: var(--ink); padding-bottom: 96px; }
+    body { margin: 0; background: var(--bg); color: var(--ink); padding-bottom: 96px; transition: background-color 0.25s ease; }
 
     header {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 14px 18px; background: #fff; position: sticky; top: 0; z-index: 20;
-      width: 100%; max-width: 1100px; margin: 0 auto;
+      padding: 14px 18px; background: var(--bg); position: sticky; top: 0; z-index: 20;
+      width: 100%; max-width: 1100px; margin: 0 auto; transition: background-color 0.25s ease;
     }
     .icon-btn {
       background: none; border: none; padding: 4px; cursor: pointer;
@@ -129,6 +129,25 @@
       padding: 20px 16px; overflow-y: auto;
     }
 
+    .theme-swatches {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .swatch-btn {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid var(--ink);
+      cursor: pointer;
+      padding: 0;
+      transition: transform 0.15s ease;
+    }
+    .swatch-btn.active {
+      transform: scale(1.18);
+      box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink);
+    }
+
     .tile-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0 14px 0; }
     .tile {
       border: 1.8px solid #dfe6e9; border-radius: 12px; padding: 8px 2px;
@@ -198,7 +217,7 @@
       .cal-day.selected .num-pill { width: 38px; height: 38px; }
     }
   </style>
-</head>    
+</head>
 <body>
 
 <div id="lockScreen">
@@ -319,6 +338,17 @@
     </div>
 
     <div class="drawer-box" style="display:flex; justify-content:space-between; align-items:center;">
+      <span style="font-size:13px; font-weight:800;">🎨 畫紙底色</span>
+      <div class="theme-swatches">
+        <button type="button" class="swatch-btn" data-bg="#ffffff" style="background:#ffffff;" title="純白" onclick="setPaperBg('#ffffff')"></button>
+        <button type="button" class="swatch-btn" data-bg="#fdf8ee" style="background:#fdf8ee;" title="奶油米" onclick="setPaperBg('#fdf8ee')"></button>
+        <button type="button" class="swatch-btn" data-bg="#f1f8f5" style="background:#f1f8f5;" title="薄荷綠" onclick="setPaperBg('#f1f8f5')"></button>
+        <button type="button" class="swatch-btn" data-bg="#f0f7ff" style="background:#f0f7ff;" title="天空藍" onclick="setPaperBg('#f0f7ff')"></button>
+        <button type="button" class="swatch-btn" data-bg="#fff2f5" style="background:#fff2f5;" title="櫻花粉" onclick="setPaperBg('#fff2f5')"></button>
+      </div>
+    </div>
+
+    <div class="drawer-box" style="display:flex; justify-content:space-between; align-items:center;">
       <div>
         <div style="font-size:13px; font-weight:800;">⏰ 每日 21:00 記帳提醒</div>
         <div style="font-size:11px; color:#666;">定時寄送提醒信至信箱</div>
@@ -350,7 +380,7 @@
 </div>
 
 <script>
-  const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyRYBbwjE4MfF_kE2V_3EA4lO91bj8z4LI2x6irckeM0LvPoUa00Ru_GkVLo3CgQHIUeg/exec';
+  const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyRYBbwjE4MfF_kE2V_3EA41O91bj8z4LI2x6irckeM0LvPoUa00Ru_GkVLo3CgQHIUeg/exec';
 
   let savedPasscode = localStorage.getItem('wallet_passcode') || '';
   let appData = null;
@@ -375,6 +405,17 @@
     '其他收入': { ico: '🪙', bg: '#ffeaa7' }
   };
 
+  function setPaperBg(color) {
+    document.documentElement.style.setProperty('--bg', color);
+    document.body.style.backgroundColor = color;
+    const header = document.querySelector('header');
+    if (header) header.style.backgroundColor = color;
+    localStorage.setItem('wallet_bg_color', color);
+    document.querySelectorAll('.swatch-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.bg === color);
+    });
+  }
+
   async function callGasApi(action, params = {}) {
     const url = new URL(GAS_API_URL);
     url.searchParams.set('action', action);
@@ -395,6 +436,7 @@
   }
 
   window.onload = function() {
+    setPaperBg(localStorage.getItem('wallet_bg_color') || '#ffffff');
     initMonthOptions();
     const today = new Date();
     document.getElementById('txDate').value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
