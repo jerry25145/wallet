@@ -73,7 +73,10 @@
     .tx-row {
       display: flex; justify-content: space-between; align-items: center;
       padding: 11px 14px; border-bottom: 1px solid #f1f2f6;
+      cursor: pointer; transition: background-color 0.15s ease;
     }
+    .tx-row:hover { background-color: #fffdf5; }
+    .tx-row:active { background-color: #fff3bf; }
     .tx-row:last-child { border-bottom: none; }
     .tx-left { display: flex; align-items: center; gap: 12px; }
     .cat-circle {
@@ -172,6 +175,15 @@
       width: 100%; padding: 13px; background: var(--coral); color: #fff;
       border: 2px solid var(--ink); border-radius: 14px; font-size: 16px; font-weight: 800; cursor: pointer;
     }
+    .action-row {
+      display: flex; gap: 10px;
+    }
+    .delete-btn {
+      padding: 13px 16px; background: #fff; color: #e74c3c;
+      border: 2px solid var(--ink); border-radius: 14px; font-size: 15px; font-weight: 800;
+      cursor: pointer; white-space: nowrap;
+    }
+    .delete-btn:active { background: #ffeaea; }
     .drawer-box { border: 2px solid var(--ink); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
     .settle-btn {
       background: var(--yellow); color: var(--ink); border: 1.5px solid var(--ink);
@@ -300,11 +312,12 @@
 <div class="modal-backdrop" id="addModal" onclick="if(event.target===this)closeAddModal()">
   <div class="sheet">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-      <div style="display:flex; gap:8px;">
+      <div style="display:flex; align-items:center; gap:8px;">
         <button id="btnTypeExp" class="pill-dark" style="background:#ffd15c; color:#1e242b; border:2px solid #1e242b;" onclick="setTxType('支出')">支出</button>
         <button id="btnTypeInc" class="pill-dark" style="background:#fff; color:#1e242b; border:2px solid #1e242b;" onclick="setTxType('收入')">收入</button>
+        <span id="modalModeBadge" style="font-size:12px; font-weight:800; color:#e67e22; display:none;">✏️ 編輯模式</span>
       </div>
-      <button onclick="closeAddModal()" style="border:none; background:none; font-size:20px; font-weight:800;">✕</button>
+      <button onclick="closeAddModal()" style="border:none; background:none; font-size:20px; font-weight:800; cursor:pointer;">✕</button>
     </div>
 
     <input type="number" id="txAmount" class="std-input" style="font-size:24px; text-align:right;" placeholder="$ 輸入金額" inputmode="numeric">
@@ -320,7 +333,10 @@
       <input type="text" id="txItem" class="std-input" placeholder="項目名稱（如：晚餐）">
     </div>
 
-    <button class="submit-btn" id="btnSubmitTx" onclick="submitTx()">完成記帳並同步</button>
+    <div class="action-row">
+      <button class="delete-btn" id="btnDeleteTx" style="display:none;" onclick="deleteCurrentTx()">🗑️ 刪除</button>
+      <button class="submit-btn" id="btnSubmitTx" onclick="submitTx()">完成記帳並同步</button>
+    </div>
   </div>
 </div>
 
@@ -380,7 +396,7 @@
 </div>
 
 <script>
-  const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxPA2aZF1DVEK_Zfr8hDp5uNWepryExRBtM4g7gMd-wTj-X4xw9oJIkxmo84l8tVlP0Cg/exec';
+  const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyRYBbwjE4MfF_kE2V_3EA41O91bj8z4LI2x6irckeM0LvPoUa0oRu_GkVLo3CgQHIUeg/exec';
 
   let savedPasscode = localStorage.getItem('wallet_passcode') || '';
   let appData = null;
@@ -389,6 +405,7 @@
   let txType = '支出';
   let selCat = '';
   let selAcc = '';
+  let editingRowNum = null;
 
   const ICONS = {
     '飲食': { ico: '🍴', bg: '#ff7675' },
@@ -416,6 +433,11 @@
     });
   }
 
+  function getTodayISO() {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  }
+
   async function callGasApi(action, params = {}) {
     const url = new URL(GAS_API_URL);
     url.searchParams.set('action', action);
@@ -438,8 +460,7 @@
   window.onload = function() {
     setPaperBg(localStorage.getItem('wallet_bg_color') || '#ffffff');
     initMonthOptions();
-    const today = new Date();
-    document.getElementById('txDate').value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    document.getElementById('txDate').value = getTodayISO();
 
     if (savedPasscode) {
       document.getElementById('lockScreen').style.display = 'none';
@@ -583,7 +604,7 @@
     const meta = ICONS[t.category] || { ico: '📌', bg: '#dfe6e9' };
     const sign = t.type === '收入' ? '+' : '-';
     return `
-      <div class="tx-row">
+      <div class="tx-row" onclick="openEditModal(${t.rowNum})" title="點擊編輯或刪除此筆紀錄">
         <div class="tx-left">
           <div class="cat-circle" style="background:${meta.bg};">${meta.ico}</div>
           <div>
@@ -632,10 +653,45 @@
   }
 
   function openAddModal() {
+    editingRowNum = null;
+    document.getElementById('modalModeBadge').style.display = 'none';
+    document.getElementById('btnDeleteTx').style.display = 'none';
+    document.getElementById('btnSubmitTx').innerText = '完成記帳並同步';
+    document.getElementById('txAmount').value = '';
+    document.getElementById('txItem').value = '';
+    document.getElementById('txDate').value = getTodayISO();
+    setTxType('支出');
     document.getElementById('addModal').classList.add('open');
-    renderFormTiles();
   }
-  function closeAddModal() { document.getElementById('addModal').classList.remove('open'); }
+
+  function openEditModal(rowNum) {
+    if (!appData || !appData.monthTx) return;
+    const tx = appData.monthTx.find(t => t.rowNum === rowNum);
+    if (!tx) return;
+
+    editingRowNum = rowNum;
+    txType = tx.type || '支出';
+    selCat = tx.category;
+    selAcc = tx.account;
+
+    document.getElementById('btnTypeExp').style.background = txType === '支出' ? '#ffd15c' : '#fff';
+    document.getElementById('btnTypeInc').style.background = txType === '收入' ? '#4bb4de' : '#fff';
+    document.getElementById('txAmount').value = tx.amount;
+    document.getElementById('txItem').value = tx.item;
+    document.getElementById('txDate').value = tx.isoDate || getTodayISO();
+
+    document.getElementById('modalModeBadge').style.display = 'inline';
+    document.getElementById('btnDeleteTx').style.display = 'block';
+    document.getElementById('btnSubmitTx').innerText = '儲存修改並同步';
+
+    renderFormTiles();
+    document.getElementById('addModal').classList.add('open');
+  }
+
+  function closeAddModal() {
+    editingRowNum = null;
+    document.getElementById('addModal').classList.remove('open');
+  }
 
   function setTxType(type) {
     txType = type;
@@ -666,29 +722,79 @@
   async function submitTx() {
     const amt = document.getElementById('txAmount').value;
     const item = document.getElementById('txItem').value.trim();
+    const dateVal = document.getElementById('txDate').value;
     if (!amt || Number(amt) <= 0) return showToast('請輸入金額');
     if (!item) return showToast('請輸入項目名稱');
 
+    const isEdit = editingRowNum !== null;
     const btn = document.getElementById('btnSubmitTx');
-    btn.disabled = true; btn.innerText = '同步寫入中...';
+    const delBtn = document.getElementById('btnDeleteTx');
+    btn.disabled = true;
+    delBtn.disabled = true;
+    btn.innerText = isEdit ? '儲存修改中...' : '同步寫入中...';
+
     try {
-      const res = await callGasApi('addTransaction', {
-        payload: {
-          date: document.getElementById('txDate').value,
-          type: txType, category: selCat, amount: amt, account: selAcc, item: item
-        }
-      });
+      const action = isEdit ? 'editTransaction' : 'addTransaction';
+      const payload = {
+        date: dateVal,
+        type: txType,
+        category: selCat,
+        amount: amt,
+        account: selAcc,
+        item: item
+      };
+      if (isEdit) {
+        payload.rowNum = editingRowNum;
+        payload.queryMonth = document.getElementById('monthSelect').value;
+      }
+
+      const res = await callGasApi(action, { payload });
       appData = res;
       document.getElementById('txAmount').value = '';
       document.getElementById('txItem').value = '';
       closeAddModal();
       renderMain();
       renderDrawer();
-      showToast('✅ 已同步至試算表！');
+      showToast(isEdit ? '✅ 修改已同步並重算餘額！' : '✅ 已同步至試算表！');
     } catch (err) {
       showToast('❌ ' + err.message);
     } finally {
-      btn.disabled = false; btn.innerText = '完成記帳並同步';
+      btn.disabled = false;
+      delBtn.disabled = false;
+      btn.innerText = isEdit ? '儲存修改並同步' : '完成記帳並同步';
+    }
+  }
+
+  async function deleteCurrentTx() {
+    if (editingRowNum === null) return;
+    const item = document.getElementById('txItem').value;
+    const amt = document.getElementById('txAmount').value;
+    if (!confirm(`確定要刪除「${item} ($${Number(amt).toLocaleString()})」這筆紀錄嗎？\n（若為信用卡消費，未出帳金額也會自動扣回）`)) return;
+
+    const btn = document.getElementById('btnSubmitTx');
+    const delBtn = document.getElementById('btnDeleteTx');
+    btn.disabled = true;
+    delBtn.disabled = true;
+    delBtn.innerText = '刪除中...';
+
+    try {
+      const res = await callGasApi('deleteTransaction', {
+        payload: {
+          rowNum: editingRowNum,
+          queryMonth: document.getElementById('monthSelect').value
+        }
+      });
+      appData = res;
+      closeAddModal();
+      renderMain();
+      renderDrawer();
+      showToast('🗑️ 已刪除該筆紀錄並自動回沖餘額');
+    } catch (err) {
+      showToast('❌ ' + err.message);
+    } finally {
+      btn.disabled = false;
+      delBtn.disabled = false;
+      delBtn.innerText = '🗑️ 刪除';
     }
   }
 
