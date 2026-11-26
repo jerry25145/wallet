@@ -191,6 +191,11 @@
       cursor: pointer; white-space: nowrap;
     }
     .settle-btn:active { transform: scale(0.95); }
+    .fixed-bank-pill {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 9px 12px; border: 2px solid var(--ink); border-radius: 12px;
+      background: #f8fafc; font-size: 13px; font-weight: 800; margin-bottom: 12px;
+    }
     #toast {
       position: fixed; top: 56px; left: 50%; transform: translateX(-50%);
       background: var(--ink); color: #fff; padding: 8px 16px; border-radius: 99px;
@@ -321,7 +326,7 @@
     </div>
 
     <input type="number" id="txAmount" class="std-input" style="font-size:24px; text-align:right;" placeholder="$ 輸入金額" inputmode="numeric">
-    
+
     <div style="font-size:12px; font-weight:800;">選擇分類：</div>
     <div class="tile-grid" id="catTiles"></div>
 
@@ -353,8 +358,13 @@
     </div>
 
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-      <input type="text" id="stTicker" class="std-input" placeholder="代號（如 00927）">
-      <input type="text" id="stName" class="std-input" placeholder="標的名稱（選填）">
+      <div>
+        <input type="text" id="stTicker" list="stockTickerList" class="std-input"
+               placeholder="代號（可選庫存或自填）" autocomplete="off"
+               oninput="onStockTickerChange(this.value)" onchange="onStockTickerChange(this.value)">
+        <datalist id="stockTickerList"></datalist>
+      </div>
+      <input type="text" id="stName" class="std-input" placeholder="標的名稱（自動帶入／可改）">
     </div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
       <input type="number" id="stShares" class="std-input" placeholder="成交股數" inputmode="numeric">
@@ -364,7 +374,12 @@
       <input type="number" id="stFee" class="std-input" placeholder="手續費與稅（預設 0）" value="0" inputmode="numeric">
       <input type="date" id="stDate" class="std-input">
     </div>
-    <select id="stBank" class="std-input"></select>
+
+    <div class="fixed-bank-pill">
+      <span>🏦 交割銀行</span>
+      <span id="stBankLabel">國泰世華</span>
+    </div>
+    <input type="hidden" id="stBank" value="國泰世華">
 
     <button class="submit-btn" id="btnSubmitStock" onclick="submitStockTrade()">確認成交並同步</button>
   </div>
@@ -429,7 +444,7 @@
 </div>
 
 <script>
-  const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbwHO_pbZKVaKeB5qY0jCpaH0YVPcWRxen1deLAytpjaZXN7DB6CkHnp8dS9Rxxq4tfAwg/exec';
+  const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyvxMO3LBuOOGK36IzBnqtrhwppTkknZo-_nFux5lnTVQNsDGujfOvPAGAWS9CLHx8dVg/exec';
 
   let savedPasscode = localStorage.getItem('wallet_passcode') || '';
   let appData = null;
@@ -491,6 +506,11 @@
   function getTodayISO() {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  }
+
+  function getCurrentQueryMonth() {
+    const sel = document.getElementById('monthSelect');
+    return (sel && sel.value) || (appData && appData.queryMonth) || '';
   }
 
   async function callGasApi(action, params = {}) {
@@ -617,8 +637,9 @@
   }
 
   function renderMain() {
-    const exp = appData.monthExpNum;
-    const inc = appData.monthIncNum;
+    if (!appData) return;
+    const exp = appData.monthExpNum || 0;
+    const inc = appData.monthIncNum || 0;
     const bal = inc - exp;
 
     document.getElementById('lblMonthExp').innerText = '$' + exp.toLocaleString();
@@ -630,7 +651,7 @@
     document.getElementById('expArc').setAttribute('stroke-dasharray', `${expLen} 515`);
 
     const groups = {};
-    appData.monthTx.forEach(t => {
+    (appData.monthTx || []).forEach(t => {
       const key = `${t.date} ${t.weekday}`;
       if (!groups[key]) groups[key] = { items: [], net: 0 };
       groups[key].items.push(t);
@@ -674,10 +695,11 @@
   }
 
   function renderCalendar() {
+    if (!appData) return;
     const [y, m] = appData.queryMonth.split('-').map(Number);
     const firstDay = new Date(y, m - 1, 1).getDay();
     const daysInMonth = new Date(y, m, 0).getDate();
-    const txDays = new Set(appData.monthTx.map(t => t.dayNum));
+    const txDays = new Set((appData.monthTx || []).map(t => t.dayNum));
 
     let html = ['日','一','二','三','四','五','六'].map(w => `<div class="cal-weekday">${w}</div>`).join('');
     for (let i = 0; i < firstDay; i++) html += `<div></div>`;
@@ -692,7 +714,7 @@
     }
     document.getElementById('calendarGrid').innerHTML = html;
 
-    const dayItems = appData.monthTx.filter(t => t.dayNum === selectedDay);
+    const dayItems = (appData.monthTx || []).filter(t => t.dayNum === selectedDay);
     let dExp = 0, dInc = 0;
     dayItems.forEach(t => t.type === '收入' ? dInc += t.amount : dExp += t.amount);
     document.getElementById('dayExp').innerText = '$' + dExp.toLocaleString();
@@ -797,11 +819,11 @@
         category: selCat,
         amount: amt,
         account: selAcc,
-        item: item
+        item: item,
+        queryMonth: getCurrentQueryMonth()
       };
       if (isEdit) {
         payload.rowNum = editingRowNum;
-        payload.queryMonth = document.getElementById('monthSelect').value;
       }
 
       const res = await callGasApi(action, { payload });
@@ -837,7 +859,7 @@
       const res = await callGasApi('deleteTransaction', {
         payload: {
           rowNum: editingRowNum,
-          queryMonth: document.getElementById('monthSelect').value
+          queryMonth: getCurrentQueryMonth()
         }
       });
       appData = res;
@@ -850,13 +872,55 @@
     } finally {
       btn.disabled = false;
       delBtn.disabled = false;
-      btn.innerText = '🗑️ 刪除';
+      delBtn.innerText = '🗑️ 刪除';
     }
+  }
+
+  function getStockNameMap() {
+    const map = {};
+    const list = (appData && Array.isArray(appData.investments)) ? appData.investments : [];
+    list.forEach(inv => {
+      const code = String(inv.ticker || '').trim();
+      const rawName = String(inv.name || '').trim();
+      const cleanName = rawName.replace(new RegExp(`\\s*\\(${code}\\)\\s*$`), '').trim() || rawName;
+      if (code) {
+        map[code] = cleanName;
+        map[code.toUpperCase()] = cleanName;
+      }
+    });
+    return map;
+  }
+
+  function populateStockTickerList() {
+    const dl = document.getElementById('stockTickerList');
+    if (!dl) return;
+    const list = (appData && Array.isArray(appData.investments)) ? appData.investments : [];
+    dl.innerHTML = list.map(inv => {
+      const code = String(inv.ticker || '').trim();
+      const name = String(inv.name || '').trim();
+      return `<option value="${code}" label="${name}"></option>`;
+    }).join('');
+  }
+
+  function onStockTickerChange(val) {
+    const code = String(val || '').trim();
+    if (!code) return;
+    const map = getStockNameMap();
+    const matched = map[code] || map[code.toUpperCase()];
+    if (matched) {
+      document.getElementById('stName').value = matched;
+    }
+  }
+
+  function getFixedSettlementBank() {
+    const accounts = (appData && Array.isArray(appData.accounts)) ? appData.accounts : [];
+    return accounts.find(a => a === '國泰世華') || accounts.find(a => a.includes('國泰')) || '國泰世華';
   }
 
   function openStockModal() {
     stockSide = '買進';
     setStockSide('買進');
+    populateStockTickerList();
     document.getElementById('stTicker').value = '';
     document.getElementById('stName').value = '';
     document.getElementById('stShares').value = '';
@@ -864,9 +928,9 @@
     document.getElementById('stFee').value = '0';
     document.getElementById('stDate').value = getTodayISO();
 
-    const bankSel = document.getElementById('stBank');
-    const bankList = (appData && appData.accounts) ? appData.accounts : ['台新銀行', '國泰世華', '中國信託', '現金'];
-    bankSel.innerHTML = bankList.map(b => `<option value="${b}">${b}</option>`).join('');
+    const bankName = getFixedSettlementBank();
+    document.getElementById('stBank').value = bankName;
+    document.getElementById('stBankLabel').innerText = bankName;
 
     document.getElementById('stockModal').classList.add('open');
   }
@@ -888,7 +952,7 @@
     const price = Number(document.getElementById('stPrice').value);
     const fee = Number(document.getElementById('stFee').value) || 0;
     const date = document.getElementById('stDate').value;
-    const bank = document.getElementById('stBank').value;
+    const bank = getFixedSettlementBank();
 
     if (!ticker) return showToast('請輸入股票代號');
     if (!shares || shares <= 0) return showToast('請輸入有效股數');
@@ -900,7 +964,17 @@
 
     try {
       appData = await callGasApi('addStockTrade', {
-        payload: { date, ticker, name, side: stockSide, shares, price, fee, bank }
+        payload: {
+          date,
+          ticker,
+          name,
+          side: stockSide,
+          shares,
+          price,
+          fee,
+          bank,
+          queryMonth: getCurrentQueryMonth()
+        }
       });
       closeStockModal();
       renderMain();
@@ -918,6 +992,7 @@
   function closeDrawer() { document.getElementById('drawerModal').classList.remove('open'); }
 
   function renderDrawer() {
+    if (!appData) return;
     document.getElementById('dNetWorth').innerText = appData.netWorth;
     document.getElementById('dCash').innerText = appData.cashTotal;
     document.getElementById('dInvest').innerText = appData.investTotal;
@@ -926,7 +1001,7 @@
     rBtn.innerText = appData.hasReminder ? '已開啟 ✓' : '開啟提醒';
     rBtn.style.background = appData.hasReminder ? '#10b981' : '#1e242b';
 
-    document.getElementById('drawerCards').innerHTML = appData.cards.map((c, i) => `
+    document.getElementById('drawerCards').innerHTML = (appData.cards || []).map((c, i) => `
       <div style="margin-bottom:10px; font-size:12px;">
         <div style="font-weight:800;">${c.name} <span style="color:#666;">(已出帳 ${c.billed})</span></div>
         <div style="display:flex; gap:6px; align-items:center; margin-top:4px;">
@@ -936,7 +1011,7 @@
       </div>
     `).join('');
 
-    document.getElementById('drawerStocks').innerHTML = appData.investments.map(inv => `
+    document.getElementById('drawerStocks').innerHTML = (appData.investments || []).map(inv => `
       <div style="font-size:12px; padding:6px 0; border-bottom:1px solid #eee;">
         <div style="display:flex; justify-content:space-between; font-weight:800;">
           <span>${inv.name} (${inv.ticker})</span>
@@ -946,7 +1021,7 @@
       </div>
     `).join('');
 
-    document.getElementById('drawerBanks').innerHTML = appData.banks.map(b => `
+    document.getElementById('drawerBanks').innerHTML = (appData.banks || []).map(b => `
       <div style="display:flex; justify-content:space-between; font-size:12px; padding:4px 0;">
         <span>${b.name}</span><b>$${b.balance}</b>
       </div>
@@ -975,7 +1050,8 @@
         payload: {
           card0: document.getElementById('uCard_0').value,
           card1: document.getElementById('uCard_1').value,
-          card2: document.getElementById('uCard_2').value
+          card2: document.getElementById('uCard_2').value,
+          queryMonth: getCurrentQueryMonth()
         }
       });
       renderDrawer();
@@ -988,7 +1064,7 @@
   async function refreshStocks() {
     showToast('⚡ 正在抓取台股即時報價...');
     try {
-      appData = await callGasApi('syncLiveStockPrices');
+      appData = await callGasApi('syncLiveStockPrices', { queryMonth: getCurrentQueryMonth() });
       renderDrawer();
       showToast('✅ 台股 ETF 最新市價已同步！');
     } catch (err) {
