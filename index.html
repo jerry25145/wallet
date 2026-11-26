@@ -340,6 +340,36 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="stockModal" onclick="if(event.target===this)closeStockModal()">
+  <div class="sheet">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <h3 style="margin:0; font-size:17px; font-weight:900;">📈 零股／股票交易</h3>
+      <button onclick="closeStockModal()" style="border:none; background:none; font-size:20px; font-weight:800; cursor:pointer;">✕</button>
+    </div>
+
+    <div style="display:flex; gap:8px; margin-bottom:10px;">
+      <button type="button" id="btnStockBuy" class="pill-dark" style="background:#ffd15c; color:#1e242b; border:2px solid #1e242b;" onclick="setStockSide('買進')">買進</button>
+      <button type="button" id="btnStockSell" class="pill-dark" style="background:#fff; color:#1e242b; border:2px solid #1e242b;" onclick="setStockSide('賣出')">賣出</button>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+      <input type="text" id="stTicker" class="std-input" placeholder="代號（如 00927）">
+      <input type="text" id="stName" class="std-input" placeholder="標的名稱（選填）">
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+      <input type="number" id="stShares" class="std-input" placeholder="成交股數" inputmode="numeric">
+      <input type="number" id="stPrice" class="std-input" placeholder="成交單價" step="0.01" inputmode="decimal">
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+      <input type="number" id="stFee" class="std-input" placeholder="手續費與稅（預設 0）" value="0" inputmode="numeric">
+      <input type="date" id="stDate" class="std-input">
+    </div>
+    <select id="stBank" class="std-input"></select>
+
+    <button class="submit-btn" id="btnSubmitStock" onclick="submitStockTrade()">確認成交並同步</button>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="drawerModal" onclick="if(event.target===this)closeDrawer()">
   <div class="drawer">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
@@ -379,9 +409,12 @@
     </div>
 
     <div class="drawer-box">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:8px;">
         <span style="font-size:13px; font-weight:800;">📈 台股 ETF 庫存</span>
-        <button class="pill-dark" style="background:#4bb4de; color:#1e242b;" onclick="refreshStocks()">⚡ 更新股價</button>
+        <div style="display:flex; gap:6px;">
+          <button class="pill-dark" style="background:#ffd15c; color:#1e242b; border:1.5px solid var(--ink);" onclick="openStockModal()">+ 零股</button>
+          <button class="pill-dark" style="background:#4bb4de; color:#1e242b;" onclick="refreshStocks()">⚡ 更新股價</button>
+        </div>
       </div>
       <div id="drawerStocks"></div>
     </div>
@@ -396,7 +429,7 @@
 </div>
 
 <script>
-  const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbwHO_pbZKVaKeB5qY0jCpaH0YVPcWRxen1deLAytpjaZXN7DB6CkHnp8dS9Rxxq4tfAwg/exec';
+  const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbydB3cKFP6OEQalVnF5zyaTfHtbHJKkhkcUEGTq0mJIkGLnosEYquFbr-L7oh0iSb__dg/exec';
 
   let savedPasscode = localStorage.getItem('wallet_passcode') || '';
   let appData = null;
@@ -406,6 +439,7 @@
   let selCat = '';
   let selAcc = '';
   let editingRowNum = null;
+  let stockSide = '買進';
 
   const ICONS = {
     '飲食': { ico: '🍴', bg: '#ff7675' },
@@ -487,6 +521,7 @@
       document.getElementById('lockScreen').style.display = 'none';
       loadData();
     } else {
+      document.getElementById('lockScreen').style.display = 'flex';
       document.getElementById('passcodeInput').focus();
     }
   };
@@ -815,7 +850,67 @@
     } finally {
       btn.disabled = false;
       delBtn.disabled = false;
-      delBtn.innerText = '🗑️ 刪除';
+      btn.innerText = '🗑️ 刪除';
+    }
+  }
+
+  function openStockModal() {
+    stockSide = '買進';
+    setStockSide('買進');
+    document.getElementById('stTicker').value = '';
+    document.getElementById('stName').value = '';
+    document.getElementById('stShares').value = '';
+    document.getElementById('stPrice').value = '';
+    document.getElementById('stFee').value = '0';
+    document.getElementById('stDate').value = getTodayISO();
+
+    const bankSel = document.getElementById('stBank');
+    const bankList = (appData && appData.accounts) ? appData.accounts : ['台新銀行', '國泰世華', '中國信託', '現金'];
+    bankSel.innerHTML = bankList.map(b => `<option value="${b}">${b}</option>`).join('');
+
+    document.getElementById('stockModal').classList.add('open');
+  }
+
+  function closeStockModal() {
+    document.getElementById('stockModal').classList.remove('open');
+  }
+
+  function setStockSide(side) {
+    stockSide = side;
+    document.getElementById('btnStockBuy').style.background = side === '買進' ? '#ffd15c' : '#fff';
+    document.getElementById('btnStockSell').style.background = side === '賣出' ? '#4bb4de' : '#fff';
+  }
+
+  async function submitStockTrade() {
+    const ticker = document.getElementById('stTicker').value.trim();
+    const name = document.getElementById('stName').value.trim();
+    const shares = Number(document.getElementById('stShares').value);
+    const price = Number(document.getElementById('stPrice').value);
+    const fee = Number(document.getElementById('stFee').value) || 0;
+    const date = document.getElementById('stDate').value;
+    const bank = document.getElementById('stBank').value;
+
+    if (!ticker) return showToast('請輸入股票代號');
+    if (!shares || shares <= 0) return showToast('請輸入有效股數');
+    if (!price || price <= 0) return showToast('請輸入有效單價');
+
+    const btn = document.getElementById('btnSubmitStock');
+    btn.disabled = true;
+    btn.innerText = '同步交易中...';
+
+    try {
+      appData = await callGasApi('addStockTrade', {
+        payload: { date, ticker, name, side: stockSide, shares, price, fee, bank }
+      });
+      closeStockModal();
+      renderMain();
+      renderDrawer();
+      showToast('✅ 股票交易已同步至試算表！');
+    } catch (err) {
+      showToast('❌ ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerText = '確認成交並同步';
     }
   }
 
