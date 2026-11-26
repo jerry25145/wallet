@@ -167,10 +167,24 @@
     }
     .acc-tile.active { border-color: var(--ink); background: #dff9fb; }
 
+    .form-2col {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 8px;
+      align-items: start;
+      margin-bottom: 10px;
+    }
+    .form-2col .std-input,
+    .form-2col .combo-wrap {
+      margin-bottom: 0;
+      min-width: 0;
+      width: 100%;
+    }
     .std-input {
-      width: 100%; padding: 10px 12px; border: 2px solid var(--ink);
-      border-radius: 12px; font-size: 15px; font-weight: 700; margin-bottom: 10px;
-      background: #fff; color: var(--ink);
+      width: 100%; min-width: 0; height: 44px; padding: 10px 12px;
+      border: 2px solid var(--ink); border-radius: 12px;
+      font-size: 15px; line-height: 20px; font-weight: 700;
+      margin-bottom: 10px; background: #fff; color: var(--ink);
     }
     .submit-btn {
       width: 100%; padding: 13px; background: var(--coral); color: #fff;
@@ -192,13 +206,20 @@
       cursor: pointer; white-space: nowrap;
     }
     .settle-btn:active { transform: scale(0.95); }
+    .mini-btn {
+      background: #fff; color: var(--ink); border: 1.5px solid var(--ink);
+      border-radius: 7px; padding: 2px 7px; font-size: 11px; font-weight: 800;
+      cursor: pointer; white-space: nowrap;
+    }
+    .mini-btn:hover { background: #fff9db; }
+    .mini-btn.danger { color: #d93025; }
     .fixed-bank-pill {
       display: flex; justify-content: space-between; align-items: center;
       padding: 9px 12px; border: 2px solid var(--ink); border-radius: 12px;
       background: #f8fafc; font-size: 13px; font-weight: 800; margin-bottom: 12px;
     }
 
-    .combo-wrap { position: relative; margin-bottom: 10px; }
+    .combo-wrap { position: relative; }
     .combo-arrow {
       position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
       background: transparent; border: none; font-size: 15px; font-weight: 900;
@@ -207,7 +228,7 @@
     .combo-menu {
       display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px);
       background: #fff; border: 2px solid var(--ink); border-radius: 12px;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.16); max-height: 190px; overflow-y: auto; z-index: 90;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.16); max-height: 200px; overflow-y: auto; z-index: 90;
     }
     .combo-menu.open { display: block; }
     .combo-item {
@@ -218,6 +239,11 @@
     .combo-item:last-child { border-bottom: none; }
     .combo-item:hover, .combo-item:active { background: #fff9db; }
     .combo-sub { font-size: 11px; color: var(--sub); font-weight: 700; }
+
+    .trade-log-item {
+      border: 1.5px solid #e5e7eb; border-radius: 12px; padding: 10px 12px;
+      margin-bottom: 8px; background: #fafafa; font-size: 12px;
+    }
 
     #toast {
       position: fixed; top: 56px; left: 50%; transform: translateX(-50%);
@@ -348,7 +374,7 @@
       <button onclick="closeAddModal()" style="border:none; background:none; font-size:20px; font-weight:800; cursor:pointer;">✕</button>
     </div>
 
-    <input type="number" id="txAmount" class="std-input" style="font-size:24px; text-align:right;" placeholder="$ 輸入金額" inputmode="numeric">
+    <input type="number" id="txAmount" class="std-input" style="font-size:24px; text-align:right; height:52px;" placeholder="$ 輸入金額" inputmode="numeric">
 
     <div style="font-size:12px; font-weight:800;">選擇分類：</div>
     <div class="tile-grid" id="catTiles"></div>
@@ -356,7 +382,7 @@
     <div style="font-size:12px; font-weight:800;">支付／入帳帳戶：</div>
     <div class="acc-grid" id="accTiles"></div>
 
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+    <div class="form-2col">
       <input type="date" id="txDate" class="std-input">
       <input type="text" id="txItem" class="std-input" placeholder="項目名稱（如：晚餐）">
     </div>
@@ -371,7 +397,10 @@
 <div class="modal-backdrop" id="stockModal" onclick="if(event.target===this)closeStockModal()">
   <div class="sheet">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-      <h3 style="margin:0; font-size:17px; font-weight:900;">📈 零股／股票交易</h3>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <h3 id="stockModalTitle" style="margin:0; font-size:17px; font-weight:900;">📈 零股／股票交易</h3>
+        <span id="stockEditBadge" style="font-size:12px; font-weight:800; color:#e67e22; display:none;">✏️ 編輯交易</span>
+      </div>
       <button onclick="closeStockModal()" style="border:none; background:none; font-size:20px; font-weight:800; cursor:pointer;">✕</button>
     </div>
 
@@ -380,22 +409,24 @@
       <button type="button" id="btnStockSell" class="pill-dark" style="background:#fff; color:#1e242b; border:2px solid #1e242b;" onclick="setStockSide('賣出')">賣出</button>
     </div>
 
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+    <div class="form-2col">
       <div class="combo-wrap" id="stockDropdownWrap">
-        <input type="text" id="stTicker" class="std-input" style="margin-bottom:0; padding-right:34px;"
-               placeholder="代號（點選或自填）" autocomplete="off"
-               onfocus="openStockDropdown()" oninput="onStockTickerInput(this.value)">
-        <button type="button" class="combo-arrow" onclick="toggleStockDropdown(event)" title="顯示庫存代號">▾</button>
+        <input type="text" id="stTicker" class="std-input" style="padding-right:34px;"
+               placeholder="代號（點選全部／自填）" autocomplete="off"
+               onclick="showAllStockDropdown()" onfocus="showAllStockDropdown()" oninput="onStockTickerInput(this.value)">
+        <button type="button" class="combo-arrow" onclick="toggleStockDropdown(event)" title="顯示全部庫存">▾</button>
         <div class="combo-menu" id="stockDropdownMenu"></div>
       </div>
-      <input type="text" id="stName" class="std-input" style="margin-bottom:0;"
-             placeholder="標的名稱（自動帶入／可改）" oninput="this.dataset.manualEdit = this.value.trim() ? '1' : ''">
+      <input type="text" id="stName" class="std-input"
+             placeholder="標的名稱（自動抓／可改）" oninput="this.dataset.manualEdit = this.value.trim() ? '1' : ''">
     </div>
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+
+    <div class="form-2col">
       <input type="number" id="stShares" class="std-input" placeholder="成交股數" inputmode="numeric">
       <input type="number" id="stPrice" class="std-input" placeholder="成交單價" step="0.01" inputmode="decimal">
     </div>
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+
+    <div class="form-2col">
       <input type="number" id="stFee" class="std-input" placeholder="手續費與稅（預設 0）" value="0" inputmode="numeric">
       <input type="date" id="stDate" class="std-input">
     </div>
@@ -406,7 +437,20 @@
     </div>
     <input type="hidden" id="stBank" value="國泰世華">
 
-    <button class="submit-btn" id="btnSubmitStock" onclick="submitStockTrade()">確認成交並同步</button>
+    <div class="action-row">
+      <button type="button" class="delete-btn" id="btnDeleteStockTrade" style="display:none;" onclick="deleteCurrentStockTrade()">🗑️ 刪除</button>
+      <button type="button" class="submit-btn" id="btnSubmitStock" onclick="submitStockTrade()">確認成交並同步</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="stockHistoryModal" onclick="if(event.target===this)closeStockHistoryModal()">
+  <div class="sheet" style="overflow-y:auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <h3 id="stockHistoryTitle" style="margin:0; font-size:17px; font-weight:900;">📋 股票交易紀錄</h3>
+      <button onclick="closeStockHistoryModal()" style="border:none; background:none; font-size:20px; font-weight:800; cursor:pointer;">✕</button>
+    </div>
+    <div id="stockHistoryList"></div>
   </div>
 </div>
 
@@ -469,7 +513,7 @@
 </div>
 
 <script>
-  const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbwdrpMzoQ3ZfvBoap3sjRlxlCpDFFuUm4Hqp1tEr-3f_weY9mG6BTKeMzuQhDUVlbKp8g/exec';
+  const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbz_q7f6KQpsR-ph5yzUUC4Yfe7YLC56kLT8qOB_G2eDyjTnPjWFo-rzbowtQVRh8TpqBA/exec';
 
   let savedPasscode = localStorage.getItem('wallet_passcode') || '';
   let appData = null;
@@ -480,6 +524,11 @@
   let selAcc = '';
   let editingRowNum = null;
   let stockSide = '買進';
+  let editingStockRowNum = null;
+  let currentHistoryTicker = '';
+  let stockLookupTimer = null;
+  let stockLookupSeq = 0;
+  const stockNameCache = {};
 
   const ICONS = {
     '飲食': { ico: '🍴', bg: '#ff7675' },
@@ -897,7 +946,7 @@
     } finally {
       btn.disabled = false;
       delBtn.disabled = false;
-      delBtn.innerText = '🗑️ 刪除';
+      btn.innerText = '🗑️ 刪除';
     }
   }
 
@@ -920,12 +969,13 @@
     const menu = document.getElementById('stockDropdownMenu');
     if (!menu) return;
     const q = String(filterText || '').trim().toUpperCase();
-    const items = getStockInventoryList().filter(it =>
-      !q || it.code.toUpperCase().includes(q) || it.name.toUpperCase().includes(q)
-    );
+    const allItems = getStockInventoryList();
+    const items = q
+      ? allItems.filter(it => it.code.toUpperCase().includes(q) || it.name.toUpperCase().includes(q) || `${it.code} · ${it.name}`.toUpperCase().includes(q))
+      : allItems;
 
     if (items.length === 0) {
-      menu.innerHTML = `<div class="combo-item" style="cursor:default;"><span class="combo-sub">無符合庫存，可直接輸入新代號</span></div>`;
+      menu.innerHTML = `<div class="combo-item" style="cursor:default;"><span class="combo-sub">無符合庫存，可直接輸入代號自動抓名稱</span></div>`;
       return;
     }
 
@@ -937,9 +987,8 @@
     `).join('');
   }
 
-  function openStockDropdown() {
-    const val = document.getElementById('stTicker').value;
-    renderStockDropdown(val);
+  function showAllStockDropdown() {
+    renderStockDropdown('');
     document.getElementById('stockDropdownMenu').classList.add('open');
   }
 
@@ -955,30 +1004,90 @@
     if (menu.classList.contains('open')) {
       closeStockDropdown();
     } else {
-      openStockDropdown();
+      showAllStockDropdown();
       document.getElementById('stTicker').focus();
     }
+  }
+
+  function extractCleanTicker(rawVal) {
+    const s = String(rawVal || '').trim().toUpperCase();
+    if (!s) return '';
+    const beforeDot = s.split('·')[0].trim();
+    return beforeDot.replace(/^TPE:/i, '').trim();
   }
 
   function selectStockOption(code, name) {
     const tickerEl = document.getElementById('stTicker');
     const nameEl = document.getElementById('stName');
-    tickerEl.value = code;
+    tickerEl.value = `${code} · ${name}`;
     nameEl.value = name;
     nameEl.dataset.manualEdit = '';
+    if (code && name) stockNameCache[code] = name;
     closeStockDropdown();
     document.getElementById('stShares').focus();
   }
 
+  async function autoFetchStockName(cleanCode) {
+    if (!cleanCode) return;
+    const nameEl = document.getElementById('stName');
+    if (!nameEl || nameEl.dataset.manualEdit === '1') return;
+
+    const invMatched = getStockInventoryList().find(it => it.code.toUpperCase() === cleanCode);
+    if (invMatched && invMatched.name) {
+      stockNameCache[cleanCode] = invMatched.name;
+      nameEl.value = invMatched.name;
+      return;
+    }
+
+    if (stockNameCache[cleanCode]) {
+      nameEl.value = stockNameCache[cleanCode];
+      return;
+    }
+
+    const seq = ++stockLookupSeq;
+    const prevPlaceholder = nameEl.placeholder;
+    nameEl.placeholder = '查詢股票名稱中...';
+
+    try {
+      const data = await callGasApi('lookupStockName', { ticker: cleanCode });
+      if (seq !== stockLookupSeq) return;
+      const curClean = extractCleanTicker(document.getElementById('stTicker').value);
+      const foundName = data && data.name ? String(data.name).trim() : '';
+      if (foundName && curClean === cleanCode && nameEl.dataset.manualEdit !== '1') {
+        stockNameCache[cleanCode] = foundName;
+        nameEl.value = foundName;
+      }
+    } catch (e) {
+      // 查不到時保持可手動輸入
+    } finally {
+      if (seq === stockLookupSeq) {
+        nameEl.placeholder = prevPlaceholder;
+      }
+    }
+  }
+
   function onStockTickerInput(val) {
     renderStockDropdown(val);
-    openStockDropdown();
-    const clean = String(val || '').trim().toUpperCase();
+    document.getElementById('stockDropdownMenu').classList.add('open');
+
+    const clean = extractCleanTicker(val);
     const nameEl = document.getElementById('stName');
-    if (!clean || nameEl.dataset.manualEdit === '1') return;
-    const matched = getStockInventoryList().find(it => it.code.toUpperCase() === clean);
-    if (matched) {
-      nameEl.value = matched.name;
+    if (stockLookupTimer) clearTimeout(stockLookupTimer);
+
+    if (!clean) {
+      if (nameEl.dataset.manualEdit !== '1') nameEl.value = '';
+      return;
+    }
+
+    const invMatched = getStockInventoryList().find(it => it.code.toUpperCase() === clean);
+    if (invMatched && invMatched.name && nameEl.dataset.manualEdit !== '1') {
+      stockNameCache[clean] = invMatched.name;
+      nameEl.value = invMatched.name;
+      return;
+    }
+
+    if (/^(\d{4,6}[A-Z]?|[A-Z]{1,5})$/i.test(clean)) {
+      stockLookupTimer = setTimeout(() => autoFetchStockName(clean), 350);
     }
   }
 
@@ -994,26 +1103,49 @@
     return accounts.find(a => a === '國泰世華') || accounts.find(a => a.includes('國泰')) || '國泰世華';
   }
 
-  function openStockModal() {
-    stockSide = '買進';
-    setStockSide('買進');
-    document.getElementById('stTicker').value = '';
-    document.getElementById('stName').value = '';
-    document.getElementById('stName').dataset.manualEdit = '';
-    document.getElementById('stShares').value = '';
-    document.getElementById('stPrice').value = '';
-    document.getElementById('stFee').value = '0';
-    document.getElementById('stDate').value = getTodayISO();
-    closeStockDropdown();
+  function openStockModal(editRecord = null) {
+    const isEdit = Boolean(editRecord && editRecord.rowNum);
+    editingStockRowNum = isEdit ? Number(editRecord.rowNum) : null;
+    stockLookupSeq++;
+
+    document.getElementById('stockModalTitle').innerText = isEdit ? '📈 編輯零股／股票交易' : '📈 零股／股票交易';
+    document.getElementById('stockEditBadge').style.display = isEdit ? 'inline' : 'none';
+    document.getElementById('btnDeleteStockTrade').style.display = isEdit ? 'block' : 'none';
+    document.getElementById('btnSubmitStock').innerText = isEdit ? '儲存修改並同步' : '確認成交並同步';
+
+    const side = isEdit ? (editRecord.side === '賣出' ? '賣出' : '買進') : '買進';
+    setStockSide(side);
 
     const bankName = getFixedSettlementBank();
     document.getElementById('stBank').value = bankName;
     document.getElementById('stBankLabel').innerText = bankName;
 
+    if (isEdit) {
+      const cleanCode = extractCleanTicker(editRecord.ticker);
+      const stockName = String(editRecord.name || '').trim();
+      document.getElementById('stTicker').value = cleanCode ? `${cleanCode} · ${stockName}` : '';
+      document.getElementById('stName').value = stockName;
+      document.getElementById('stName').dataset.manualEdit = '1';
+      document.getElementById('stShares').value = editRecord.shares || '';
+      document.getElementById('stPrice').value = editRecord.price || '';
+      document.getElementById('stFee').value = editRecord.fee ?? 0;
+      document.getElementById('stDate').value = editRecord.isoDate || getTodayISO();
+    } else {
+      document.getElementById('stTicker').value = '';
+      document.getElementById('stName').value = '';
+      document.getElementById('stName').dataset.manualEdit = '';
+      document.getElementById('stShares').value = '';
+      document.getElementById('stPrice').value = '';
+      document.getElementById('stFee').value = '0';
+      document.getElementById('stDate').value = getTodayISO();
+    }
+
+    closeStockDropdown();
     document.getElementById('stockModal').classList.add('open');
   }
 
   function closeStockModal() {
+    editingStockRowNum = null;
     closeStockDropdown();
     document.getElementById('stockModal').classList.remove('open');
   }
@@ -1025,45 +1157,172 @@
   }
 
   async function submitStockTrade() {
-    const ticker = document.getElementById('stTicker').value.trim();
-    const name = document.getElementById('stName').value.trim();
+    const ticker = extractCleanTicker(document.getElementById('stTicker').value);
+    let name = document.getElementById('stName').value.trim();
     const shares = Number(document.getElementById('stShares').value);
     const price = Number(document.getElementById('stPrice').value);
     const fee = Number(document.getElementById('stFee').value) || 0;
     const date = document.getElementById('stDate').value;
     const bank = getFixedSettlementBank();
 
-    if (!ticker) return showToast('請輸入股票代號');
+    if (!ticker) return showToast('請輸入或選擇股票代號');
     if (!shares || shares <= 0) return showToast('請輸入有效股數');
     if (!price || price <= 0) return showToast('請輸入有效單價');
 
+    const isEdit = editingStockRowNum !== null;
     const btn = document.getElementById('btnSubmitStock');
+    const delBtn = document.getElementById('btnDeleteStockTrade');
     btn.disabled = true;
-    btn.innerText = '同步交易中...';
+    delBtn.disabled = true;
+    btn.innerText = isEdit ? '儲存修改中...' : '同步交易中...';
 
     try {
-      appData = await callGasApi('addStockTrade', {
-        payload: {
-          date,
-          ticker,
-          name,
-          side: stockSide,
-          shares,
-          price,
-          fee,
-          bank,
-          queryMonth: getCurrentQueryMonth()
-        }
-      });
+      if (!name && stockNameCache[ticker]) {
+        name = stockNameCache[ticker];
+      }
+      const action = isEdit ? 'editStockTrade' : 'addStockTrade';
+      const payload = {
+        date,
+        ticker,
+        name,
+        side: stockSide,
+        shares,
+        price,
+        fee,
+        bank,
+        queryMonth: getCurrentQueryMonth()
+      };
+      if (isEdit) {
+        payload.rowNum = editingStockRowNum;
+      }
+
+      appData = await callGasApi(action, { payload });
       closeStockModal();
+      if (document.getElementById('stockHistoryModal').classList.contains('open')) {
+        await openStockHistoryModal(currentHistoryTicker);
+      }
       renderMain();
       renderDrawer();
-      showToast('✅ 股票交易已同步至試算表！');
+      showToast(isEdit ? '✅ 股票交易已修改並重算庫存！' : '✅ 股票交易已同步至試算表！');
     } catch (err) {
       showToast('❌ ' + err.message);
     } finally {
       btn.disabled = false;
-      btn.innerText = '確認成交並同步';
+      delBtn.disabled = false;
+      btn.innerText = isEdit ? '儲存修改並同步' : '確認成交並同步';
+    }
+  }
+
+  async function deleteCurrentStockTrade() {
+    if (editingStockRowNum === null) return;
+    const code = extractCleanTicker(document.getElementById('stTicker').value);
+    const name = document.getElementById('stName').value.trim();
+    if (!confirm(`確定要刪除這筆「${stockSide} ${name || code} (${code})」交易紀錄嗎？\n（庫存股數、均價與流水帳交割紀錄都會同步重算）`)) return;
+
+    const btn = document.getElementById('btnSubmitStock');
+    const delBtn = document.getElementById('btnDeleteStockTrade');
+    btn.disabled = true;
+    delBtn.disabled = true;
+    delBtn.innerText = '刪除中...';
+
+    try {
+      appData = await callGasApi('deleteStockTrade', {
+        payload: {
+          rowNum: editingStockRowNum,
+          queryMonth: getCurrentQueryMonth()
+        }
+      });
+      closeStockModal();
+      if (document.getElementById('stockHistoryModal').classList.contains('open')) {
+        await openStockHistoryModal(currentHistoryTicker);
+      }
+      renderMain();
+      renderDrawer();
+      showToast('🗑️ 已刪除股票交易並同步重算');
+    } catch (err) {
+      showToast('❌ ' + err.message);
+    } finally {
+      btn.disabled = false;
+      delBtn.disabled = false;
+      delBtn.innerText = '🗑️ 刪除';
+    }
+  }
+
+  async function openStockHistoryModal(ticker = '') {
+    currentHistoryTicker = extractCleanTicker(ticker);
+    document.getElementById('stockHistoryTitle').innerText = currentHistoryTicker
+      ? `📋 ${currentHistoryTicker} 交易紀錄`
+      : '📋 全部股票交易紀錄';
+    document.getElementById('stockHistoryList').innerHTML = '<div style="text-align:center; padding:20px; color:#666;">載入交易紀錄中...</div>';
+    document.getElementById('stockHistoryModal').classList.add('open');
+
+    try {
+      const trades = await callGasApi('getStockTrades', { ticker: currentHistoryTicker });
+      renderStockHistoryList(Array.isArray(trades) ? trades : []);
+    } catch (err) {
+      document.getElementById('stockHistoryList').innerHTML = `<div style="text-align:center; padding:20px; color:#d93025;">${err.message}</div>`;
+    }
+  }
+
+  function closeStockHistoryModal() {
+    document.getElementById('stockHistoryModal').classList.remove('open');
+  }
+
+  function renderStockHistoryList(trades) {
+    const box = document.getElementById('stockHistoryList');
+    if (!trades.length) {
+      box.innerHTML = '<div style="text-align:center; padding:24px 0; color:#888; font-size:13px;">尚無股票交易明細紀錄</div>';
+      return;
+    }
+
+    box.innerHTML = trades.map(tr => {
+      const encoded = encodeURIComponent(JSON.stringify(tr));
+      const sideColor = tr.side === '買進' ? '#d93025' : '#1e8e3e';
+      return `
+        <div class="trade-log-item">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <div>
+              <b style="color:${sideColor};">[${tr.side}]</b>
+              <b>${tr.name} (${tr.ticker})</b>
+              <span style="color:#666;">· ${tr.date}</span>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button class="mini-btn" onclick="editTradeFromHistory('${encoded}')">✏️ 編輯</button>
+              <button class="mini-btn danger" onclick="deleteTradeFromHistory('${encoded}')">🗑️ 刪除</button>
+            </div>
+          </div>
+          <div style="color:#444;">
+            股數：<b>${Number(tr.shares).toLocaleString()}</b> ｜ 單價：<b>$${Number(tr.price).toLocaleString()}</b> ｜ 費稅：<b>$${Number(tr.fee || 0).toLocaleString()}</b>
+          </div>
+          <div style="color:#666; font-size:11px; margin-top:2px;">
+            交割金額：<b>$${Number(tr.settleAmt || 0).toLocaleString()}</b>（${tr.bank || '國泰世華'}）
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function editTradeFromHistory(encodedStr) {
+    const tr = JSON.parse(decodeURIComponent(encodedStr));
+    openStockModal(tr);
+  }
+
+  async function deleteTradeFromHistory(encodedStr) {
+    const tr = JSON.parse(decodeURIComponent(encodedStr));
+    if (!confirm(`確定要刪除 ${tr.date}「${tr.side} ${tr.name} (${tr.ticker}) ${tr.shares}股」這筆交易嗎？`)) return;
+    try {
+      appData = await callGasApi('deleteStockTrade', {
+        payload: {
+          rowNum: tr.rowNum,
+          queryMonth: getCurrentQueryMonth()
+        }
+      });
+      await openStockHistoryModal(currentHistoryTicker);
+      renderMain();
+      renderDrawer();
+      showToast('🗑️ 已刪除該筆股票交易並重算庫存');
+    } catch (err) {
+      showToast('❌ ' + err.message);
     }
   }
 
@@ -1092,11 +1351,14 @@
 
     document.getElementById('drawerStocks').innerHTML = (appData.investments || []).map(inv => `
       <div style="font-size:12px; padding:6px 0; border-bottom:1px solid #eee;">
-        <div style="display:flex; justify-content:space-between; font-weight:800;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; font-weight:800;">
           <span>${inv.name} (${inv.ticker})</span>
-          <span>$${inv.marketVal}</span>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span>$${inv.marketVal}</span>
+            <button class="mini-btn" onclick="openStockHistoryModal('${String(inv.ticker).replace(/'/g, "\\'")}')">紀錄</button>
+          </div>
         </div>
-        <div style="color:#666; font-size:11px;">現價 ${inv.price} · ${formatSignedMetric(inv.pnl, { prefix: '損益 ' })}</div>
+        <div style="color:#666; font-size:11px;">${inv.shares}股 · 現價 ${inv.price} · ${formatSignedMetric(inv.pnl, { prefix: '損益 ' })}</div>
       </div>
     `).join('');
 
