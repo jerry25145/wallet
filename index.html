@@ -124,7 +124,7 @@
       background: #fff; width: 100%; max-width: 640px;
       border-top-left-radius: 22px; border-top-right-radius: 22px;
       border-top: 2.5px solid var(--ink); padding: 18px;
-      max-height: 88vh; overflow-y: auto;
+      max-height: 88vh; overflow-y: visible;
     }
     .drawer {
       background: #fff; width: 85%; max-width: 360px; height: 100%;
@@ -170,6 +170,7 @@
     .std-input {
       width: 100%; padding: 10px 12px; border: 2px solid var(--ink);
       border-radius: 12px; font-size: 15px; font-weight: 700; margin-bottom: 10px;
+      background: #fff; color: var(--ink);
     }
     .submit-btn {
       width: 100%; padding: 13px; background: var(--coral); color: #fff;
@@ -196,6 +197,28 @@
       padding: 9px 12px; border: 2px solid var(--ink); border-radius: 12px;
       background: #f8fafc; font-size: 13px; font-weight: 800; margin-bottom: 12px;
     }
+
+    .combo-wrap { position: relative; margin-bottom: 10px; }
+    .combo-arrow {
+      position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+      background: transparent; border: none; font-size: 15px; font-weight: 900;
+      color: var(--ink); cursor: pointer; padding: 4px 6px; line-height: 1;
+    }
+    .combo-menu {
+      display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px);
+      background: #fff; border: 2px solid var(--ink); border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.16); max-height: 190px; overflow-y: auto; z-index: 90;
+    }
+    .combo-menu.open { display: block; }
+    .combo-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 9px 12px; font-size: 13px; font-weight: 800; cursor: pointer;
+      border-bottom: 1px solid #f1f2f6;
+    }
+    .combo-item:last-child { border-bottom: none; }
+    .combo-item:hover, .combo-item:active { background: #fff9db; }
+    .combo-sub { font-size: 11px; color: var(--sub); font-weight: 700; }
+
     #toast {
       position: fixed; top: 56px; left: 50%; transform: translateX(-50%);
       background: var(--ink); color: #fff; padding: 8px 16px; border-radius: 99px;
@@ -315,7 +338,7 @@
 <button class="fab-add" onclick="openAddModal()">+</button>
 
 <div class="modal-backdrop" id="addModal" onclick="if(event.target===this)closeAddModal()">
-  <div class="sheet">
+  <div class="sheet" style="overflow-y:auto;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
       <div style="display:flex; align-items:center; gap:8px;">
         <button id="btnTypeExp" class="pill-dark" style="background:#ffd15c; color:#1e242b; border:2px solid #1e242b;" onclick="setTxType('支出')">支出</button>
@@ -358,13 +381,15 @@
     </div>
 
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-      <div>
-        <input type="text" id="stTicker" list="stockTickerList" class="std-input"
-               placeholder="代號（可選庫存或自填）" autocomplete="off"
-               oninput="onStockTickerChange(this.value)" onchange="onStockTickerChange(this.value)">
-        <datalist id="stockTickerList"></datalist>
+      <div class="combo-wrap" id="stockDropdownWrap">
+        <input type="text" id="stTicker" class="std-input" style="margin-bottom:0; padding-right:34px;"
+               placeholder="代號（點選或自填）" autocomplete="off"
+               onfocus="openStockDropdown()" oninput="onStockTickerInput(this.value)">
+        <button type="button" class="combo-arrow" onclick="toggleStockDropdown(event)" title="顯示庫存代號">▾</button>
+        <div class="combo-menu" id="stockDropdownMenu"></div>
       </div>
-      <input type="text" id="stName" class="std-input" placeholder="標的名稱（自動帶入／可改）">
+      <input type="text" id="stName" class="std-input" style="margin-bottom:0;"
+             placeholder="標的名稱（自動帶入／可改）" oninput="this.dataset.manualEdit = this.value.trim() ? '1' : ''">
     </div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
       <input type="number" id="stShares" class="std-input" placeholder="成交股數" inputmode="numeric">
@@ -444,7 +469,7 @@
 </div>
 
 <script>
-  const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbwLQEe41mU-sQBQV-k_0ih2rvISyloypL--LYi3HqKheMgNl-ZtgV_9gll7HxmB5LlD3g/exec';
+  const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbwj1OaJG0sLDyuJ_WJn04dp4Lw-OrhI-20gAcb3UlVri7iLjUOT78ZdcbeOjoORLvyKgg/exec';
 
   let savedPasscode = localStorage.getItem('wallet_passcode') || '';
   let appData = null;
@@ -876,41 +901,93 @@
     }
   }
 
-  function getStockNameMap() {
-    const map = {};
+  function getStockInventoryList() {
     const list = (appData && Array.isArray(appData.investments)) ? appData.investments : [];
+    const seen = new Set();
+    const items = [];
     list.forEach(inv => {
-      const code = String(inv.ticker || '').trim();
+      const code = String(inv.ticker || '').trim().toUpperCase();
+      if (!code || seen.has(code)) return;
+      seen.add(code);
       const rawName = String(inv.name || '').trim();
-      const cleanName = rawName.replace(new RegExp(`\\s*\\(${code}\\)\\s*$`), '').trim() || rawName;
-      if (code) {
-        map[code] = cleanName;
-        map[code.toUpperCase()] = cleanName;
-      }
+      const cleanName = rawName.replace(new RegExp(`\\s*\\(${code}\\)\\s*`, 'i'), '').trim() || rawName;
+      items.push({ code, name: cleanName, shares: Number(inv.shares) || 0 });
     });
-    return map;
+    return items;
   }
 
-  function populateStockTickerList() {
-    const dl = document.getElementById('stockTickerList');
-    if (!dl) return;
-    const list = (appData && Array.isArray(appData.investments)) ? appData.investments : [];
-    dl.innerHTML = list.map(inv => {
-      const code = String(inv.ticker || '').trim();
-      const name = String(inv.name || '').trim();
-      return `<option value="${code}" label="${name}"></option>`;
-    }).join('');
+  function renderStockDropdown(filterText = '') {
+    const menu = document.getElementById('stockDropdownMenu');
+    if (!menu) return;
+    const q = String(filterText || '').trim().toUpperCase();
+    const items = getStockInventoryList().filter(it =>
+      !q || it.code.toUpperCase().includes(q) || it.name.toUpperCase().includes(q)
+    );
+
+    if (items.length === 0) {
+      menu.innerHTML = `<div class="combo-item" style="cursor:default;"><span class="combo-sub">無符合庫存，可直接輸入新代號</span></div>`;
+      return;
+    }
+
+    menu.innerHTML = items.map(it => `
+      <div class="combo-item" onmousedown="event.preventDefault(); selectStockOption('${it.code.replace(/'/g, "\\'")}', '${it.name.replace(/'/g, "\\'")}')">
+        <span>${it.code} · ${it.name}</span>
+        <span class="combo-sub">${it.shares}股</span>
+      </div>
+    `).join('');
   }
 
-  function onStockTickerChange(val) {
-    const code = String(val || '').trim();
-    if (!code) return;
-    const map = getStockNameMap();
-    const matched = map[code] || map[code.toUpperCase()];
-    if (matched) {
-      document.getElementById('stName').value = matched;
+  function openStockDropdown() {
+    const val = document.getElementById('stTicker').value;
+    renderStockDropdown(val);
+    document.getElementById('stockDropdownMenu').classList.add('open');
+  }
+
+  function closeStockDropdown() {
+    const menu = document.getElementById('stockDropdownMenu');
+    if (menu) menu.classList.remove('open');
+  }
+
+  function toggleStockDropdown(event) {
+    if (event) event.stopPropagation();
+    const menu = document.getElementById('stockDropdownMenu');
+    if (!menu) return;
+    if (menu.classList.contains('open')) {
+      closeStockDropdown();
+    } else {
+      openStockDropdown();
+      document.getElementById('stTicker').focus();
     }
   }
+
+  function selectStockOption(code, name) {
+    const tickerEl = document.getElementById('stTicker');
+    const nameEl = document.getElementById('stName');
+    tickerEl.value = code;
+    nameEl.value = name;
+    nameEl.dataset.manualEdit = '';
+    closeStockDropdown();
+    document.getElementById('stShares').focus();
+  }
+
+  function onStockTickerInput(val) {
+    renderStockDropdown(val);
+    openStockDropdown();
+    const clean = String(val || '').trim().toUpperCase();
+    const nameEl = document.getElementById('stName');
+    if (!clean || nameEl.dataset.manualEdit === '1') return;
+    const matched = getStockInventoryList().find(it => it.code.toUpperCase() === clean);
+    if (matched) {
+      nameEl.value = matched.name;
+    }
+  }
+
+  document.addEventListener('click', function(e) {
+    const wrap = document.getElementById('stockDropdownWrap');
+    if (wrap && !wrap.contains(e.target)) {
+      closeStockDropdown();
+    }
+  });
 
   function getFixedSettlementBank() {
     const accounts = (appData && Array.isArray(appData.accounts)) ? appData.accounts : [];
@@ -920,13 +997,14 @@
   function openStockModal() {
     stockSide = '買進';
     setStockSide('買進');
-    populateStockTickerList();
     document.getElementById('stTicker').value = '';
     document.getElementById('stName').value = '';
+    document.getElementById('stName').dataset.manualEdit = '';
     document.getElementById('stShares').value = '';
     document.getElementById('stPrice').value = '';
     document.getElementById('stFee').value = '0';
     document.getElementById('stDate').value = getTodayISO();
+    closeStockDropdown();
 
     const bankName = getFixedSettlementBank();
     document.getElementById('stBank').value = bankName;
@@ -936,6 +1014,7 @@
   }
 
   function closeStockModal() {
+    closeStockDropdown();
     document.getElementById('stockModal').classList.remove('open');
   }
 
